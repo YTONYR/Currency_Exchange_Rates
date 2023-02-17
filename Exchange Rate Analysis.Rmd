@@ -1,0 +1,62 @@
+---
+title: "Analysis of Currency Exchange Rate by Using Time Series"
+author: "Ningzhang Ran"
+date: "2022-11-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Exchange Rate of Canadian Dollar to Chinese Yuan
+```{r}
+library("quantmod")
+library("forecast")
+library("astsa")
+#Use na.omit to remove missing data
+cadcny <- na.omit(getSymbols("CADCNY=X",src="yahoo",auto.assign = FALSE,from = "2022-09-01",to = "2022-11-19"))
+acf(cadcny$`CADCNY=X.Adjusted`)
+pacf(cadcny$`CADCNY=X.Adjusted`)
+auto.arima(cadcny$`CADCNY=X.Adjusted`)
+```
+#use ets to fit the model and give out the prediction
+```{r}
+fitted_model <- ets(cadcny$`CADCNY=X.Adjusted`)
+ets.p <- predict(fitted_model,10)
+plot(ets.p)
+```
+#Using auto.arima function and sarima.for given out the prediction.
+```{r}
+fitted_model <- auto.arima(cadcny$`CADCNY=X.Adjusted`)
+arma.p <-sarima.for(cadcny$`CADCNY=X.Adjusted`,10,0,1,2)
+```
+#The ets is getting almost the same result with auto.arima
+
+$$sMAPE = 100 \times \frac{1}{m} \sum_{i=1} \frac{ |F_i-A_i| }{ (|A_i|+|F_i|)/2 }$$
+Analyze model by sMAPE:
+```{r}
+a_cadcny <- na.omit(getSymbols("CADCNY=X",src="yahoo",auto.assign = FALSE,from = "2022-11-19",to = "2022-12-30"))
+a.data <- a_cadcny$`CADCNY=X.Adjusted`[1:10]
+sMAPE <- function(x,y){  2 * 100 * mean( abs(x-y) / (abs(x)+abs(y))) }
+ets.sMAPE <- sMAPE(ets.p$mean,a.data)
+arma.sMAPE <- sMAPE(arma.p$pred,a.data)
+ets.sMAPE
+arma.sMAPE
+```
+$$ets.sMAPE = 0.6160527 < 0.7747836=arma.sMAPE $$ So ets model has more accurate prediction than that of ARIMA(0,1,2)
+
+#Try another model called Yule-Walker Estimation.
+#choose AR(1) model and use Yule-Walker Estimation
+```{r}
+x <- ar.yw(cadcny$`CADCNY=X.Adjusted`,order = 1)
+x
+ccr <- predict(x,n.ahead = 10)
+plot(ccr$pred)
+```
+
+By using Yule-Walker Estimation, $$X_t = 0.6994Y_{t-1}+0.2023Y_{t-2}+0.0968Y_{t-3}+W_t\\$$where $$Y_t = X_t - \hat\mu,\ \hat\mu = 5.870677,\ \hat\sigma^{2}=0.002558912$$
+
+Conclusion:
+Yule-Walker model is limited. In this specific situation, ets model performed better prediction than ARIMA(0,1,2). However, these model do predict the same decreasing trend which is consist with the accrual trend.
+
